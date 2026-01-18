@@ -1,3 +1,4 @@
+// Backend for Consultoria de Negocios - Railway v1.0.3
 import express, { type Request, type Response } from 'express'
 import cors from 'cors'
 import { GoogleGenerativeAI } from '@google/generative-ai'
