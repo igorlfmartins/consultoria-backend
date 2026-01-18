@@ -1,4 +1,4 @@
-import express from 'express'
+import express, { type Request, type Response } from 'express'
 import cors from 'cors'
 import { GoogleGenerativeAI } from '@google/generative-ai'
 import 'dotenv/config'
@@ -51,7 +51,7 @@ if (!geminiKey) {
 
 const genAI = new GoogleGenerativeAI(geminiKey)
 
-app.post('/api/consultoria', async (req, res) => {
+app.post('/api/consultoria', async (req: Request, res: Response) => {
   try {
     const apiKey = req.header('x-api-key')
     if (apiKey !== clientApiKey) {
@@ -90,4 +90,3 @@ const port = process.env.PORT || 3000
 app.listen(port, () => {
   console.log(`Server running on port ${port}`)
 })
-
