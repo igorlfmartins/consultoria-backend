@@ -46,7 +46,21 @@ app.use((req, res, next) => {
 })
 
 app.get('/', (req: Request, res: Response) => {
-  res.status(200).send('Backend is running! v1.0.4')
+  res.status(200).send('Backend is running! v1.0.5')
+})
+
+app.get('/api/debug-models', async (req: Request, res: Response) => {
+  try {
+    const geminiKey = process.env.GEMINI_API_KEY
+    if (!geminiKey) return res.status(500).json({ error: 'GEMINI_API_KEY not set' })
+    
+    // Note: The SDK might not have a direct listModels, so we use fetch
+    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${geminiKey}`)
+    const data = await response.json()
+    res.json(data)
+  } catch (err: any) {
+    res.status(500).json({ error: err.message })
+  }
 })
 
 const clientApiKey = process.env.CLIENT_API_KEY
