@@ -78,10 +78,11 @@ app.post('/api/consultoria', async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'Message is required' })
     }
 
+    const modelName = 'gemini-1.5-flash-latest'
     const model = genAI.getGenerativeModel({
-        model: 'gemini-1.5-flash',
-        systemInstruction: SYSTEM_INSTRUCTION,
-      })
+      model: modelName,
+      systemInstruction: SYSTEM_INSTRUCTION,
+    })
 
     const chat = model.startChat({
       history: history || [],
