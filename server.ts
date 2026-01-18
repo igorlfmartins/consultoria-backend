@@ -45,7 +45,7 @@ app.use((req, res, next) => {
 })
 
 app.get('/', (req: Request, res: Response) => {
-  res.status(200).send('Backend is running!')
+  res.status(200).send('Backend is running! v1.0.2')
 })
 
 const clientApiKey = process.env.CLIENT_API_KEY
