@@ -46,7 +46,7 @@ app.use((req, res, next) => {
 })
 
 app.get('/', (req: Request, res: Response) => {
-  res.status(200).send('Backend is running! v1.0.2')
+  res.status(200).send('Backend is running! v1.0.4')
 })
 
 const clientApiKey = process.env.CLIENT_API_KEY
@@ -78,7 +78,7 @@ app.post('/api/consultoria', async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'Message is required' })
     }
 
-    const modelName = 'gemini-1.5-flash-latest'
+    const modelName = 'gemini-1.5-flash'
     const model = genAI.getGenerativeModel({
       model: modelName,
       systemInstruction: SYSTEM_INSTRUCTION,
