@@ -38,6 +38,10 @@ const app = express()
 app.use(cors())
 app.use(express.json())
 
+app.get('/', (req: Request, res: Response) => {
+  res.status(200).send('Backend is running!')
+})
+
 const clientApiKey = process.env.CLIENT_API_KEY
 const geminiKey = process.env.GEMINI_API_KEY
 
