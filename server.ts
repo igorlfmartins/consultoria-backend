@@ -3,7 +3,7 @@ import express, { type Request, type Response } from 'express'
 import cors from 'cors'
 import { GoogleGenerativeAI } from '@google/generative-ai'
 import 'dotenv/config'
-import { AGENT_PROMPTS } from './agents'
+import { AGENT_PROMPTS } from './agents.js'
 
 // Placeholder for agent system instructions - will be managed dynamically
 
@@ -37,10 +37,6 @@ app.get('/', (req: Request, res: Response) => {
 const clientApiKey = process.env.CLIENT_API_KEY
 const geminiKey = process.env.GEMINI_API_KEY
 
-if (!clientApiKey) {
-  throw new Error('CLIENT_API_KEY not set')
-}
-
 if (!geminiKey) {
   throw new Error('GEMINI_API_KEY not set')
 }
@@ -49,9 +45,11 @@ const genAI = new GoogleGenerativeAI(geminiKey)
 
 app.post('/api/consultoria', async (req: Request, res: Response) => {
   try {
-    const apiKey = req.header('x-api-key')
-    if (apiKey !== clientApiKey) {
-      return res.status(401).json({ error: 'Unauthorized: Invalid API Key' })
+    if (clientApiKey) {
+      const apiKey = req.header('x-api-key')
+      if (apiKey !== clientApiKey) {
+        return res.status(401).json({ error: 'Unauthorized: Invalid API Key' })
+      }
     }
 
     const { message, history } = req.body as {
