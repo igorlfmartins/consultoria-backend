@@ -62,7 +62,7 @@ app.post('/api/consultoria', async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'Message is required' })
     }
 
-    const modelName = 'gemini-1.5-flash-latest'
+    const modelName = 'gemini-2.0-flash'
 
     const callAgent = async (agentName: string, userMessage: string, chatHistory: Array<{ role: 'user' | 'model'; parts: { text: string }[] }> = []) => {
       const agentPrompt = AGENT_PROMPTS[agentName as keyof typeof AGENT_PROMPTS]
