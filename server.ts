@@ -52,9 +52,10 @@ app.post('/api/consultoria', async (req: Request, res: Response) => {
       }
     }
 
-    const { message, history } = req.body as {
+    const { message, history, selectedAgents } = req.body as {
       message?: string
       history?: Array<{ role: 'user' | 'model'; parts: { text: string }[] }>
+      selectedAgents?: string[]
     }
 
     if (!message) {
@@ -82,16 +83,23 @@ app.post('/api/consultoria', async (req: Request, res: Response) => {
       return result.response.text()
     }
 
-    // Step 1: Call the Router Agent
-    const routerResponse = await callAgent('Router Agent', message, history)
-    const selectedConsultants = routerResponse.split(',').map(consultant => consultant.trim()).filter(Boolean)
+    let finalConsultants: string[] = []
 
-    if (selectedConsultants.length === 0) {
+    if (selectedAgents && selectedAgents.length > 0) {
+      // If user selects specific agents, use them directly
+      finalConsultants = selectedAgents
+    } else {
+      // Otherwise, use the Router Agent to decide
+      const routerResponse = await callAgent('Router Agent', message, history)
+      finalConsultants = routerResponse.split(',').map(consultant => consultant.trim()).filter(Boolean)
+    }
+
+    if (finalConsultants.length === 0) {
       return res.json({ reply: 'No relevant consultants found for your query.' })
     }
 
     const consultantResponses: { [key: string]: string } = {}
-    for (const consultantName of selectedConsultants) {
+    for (const consultantName of finalConsultants) {
       try {
         const response = await callAgent(consultantName, message, history)
         consultantResponses[consultantName] = response
