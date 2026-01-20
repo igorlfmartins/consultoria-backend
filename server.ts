@@ -45,15 +45,27 @@ app.post('/api/consultoria', async (req: Request, res: Response) => {
     const model = genAI.getGenerativeModel(
       {
         model: modelName,
-        systemInstruction: UNIFIED_AGENT_PROMPT,
       },
       {
         apiVersion: 'v1',
       }
     )
 
+    // Prepend system instruction to history as a user-model turn
+    // This is a workaround for API v1 not supporting systemInstruction in the top-level config
+    const systemContext = [
+      {
+        role: 'user',
+        parts: [{ text: `INSTRUÇÕES DO SISTEMA:\n\n${UNIFIED_AGENT_PROMPT}` }],
+      },
+      {
+        role: 'model',
+        parts: [{ text: 'Entendido. Seguirei essas instruções para atuar como o consultor de negócios.' }],
+      },
+    ]
+
     const chat = model.startChat({
-      history: history || [],
+      history: [...systemContext, ...(history || [])],
     })
 
     const result = await chat.sendMessage(message)
