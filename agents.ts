@@ -1,4 +1,3 @@
-
 export const UNIFIED_AGENT_PROMPT = `
 // =================================================================================
 SISTEMA DE CONSULTORIA INTEGRADO – VERSAO AVANCADA COM MENTALISMO ETICO
