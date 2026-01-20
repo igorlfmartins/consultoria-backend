@@ -21,7 +21,6 @@ app.get('/', (req: Request, res: Response) => {
   res.status(200).send('Backend is running! v1.0.6')
 })
 
-const clientApiKey = process.env.CLIENT_API_KEY
 const geminiKey = process.env.GEMINI_API_KEY
 
 if (!geminiKey) {
@@ -32,13 +31,6 @@ const genAI = new GoogleGenerativeAI(geminiKey)
 
 app.post('/api/consultoria', async (req: Request, res: Response) => {
   try {
-    if (clientApiKey) {
-      const apiKey = req.header('x-api-key')
-      if (apiKey !== clientApiKey) {
-        return res.status(401).json({ error: 'Unauthorized: Invalid API Key' })
-      }
-    }
-
     const { message, history } = req.body as {
       message?: string
       history?: Array<{ role: 'user' | 'model'; parts: { text: string }[] }>
