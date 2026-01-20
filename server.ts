@@ -58,8 +58,9 @@ app.post('/api/consultoria', async (req: Request, res: Response) => {
 
     return res.json({ reply: response })
   } catch (err: any) {
-    console.error(err)
-    return res.status(500).json({ error: err.message || 'Internal server error' })
+    console.error('consultoria error:', err)
+    const message = typeof err?.message === 'string' ? err.message : 'Internal server error'
+    return res.json({ reply: `Erro interno no backend: ${message}` })
   }
 })
 
