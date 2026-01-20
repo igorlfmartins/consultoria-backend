@@ -42,14 +42,10 @@ app.post('/api/consultoria', async (req: Request, res: Response) => {
 
     const modelName = 'gemini-1.5-flash'
 
-    const model = genAI.getGenerativeModel(
-      {
-        model: modelName,
-      },
-      {
-        apiVersion: 'v1',
-      }
-    )
+    // Remove explicit apiVersion to let the SDK handle it (defaults to v1beta or v1 depending on version)
+    const model = genAI.getGenerativeModel({
+      model: modelName,
+    })
 
     // Prepend system instruction to history as a user-model turn
     // This is a workaround for API v1 not supporting systemInstruction in the top-level config
