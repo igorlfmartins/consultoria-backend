@@ -40,7 +40,7 @@ app.post('/api/consultoria', async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'Message is required' })
     }
 
-    const modelName = 'gemini-1.5-flash-latest'
+    const modelName = 'gemini-1.5-flash'
 
     // Remove explicit apiVersion to let the SDK handle it (defaults to v1beta or v1 depending on version)
     const model = genAI.getGenerativeModel({
