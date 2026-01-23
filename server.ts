@@ -4,6 +4,13 @@ import cors from 'cors'
 import { GoogleGenerativeAI } from '@google/generative-ai'
 import 'dotenv/config'
 import { UNIFIED_AGENT_PROMPT } from './agents.js'
+import {
+  SALES_AGENT_PROMPT,
+  MARKETING_AGENT_PROMPT,
+  FINANCE_AGENT_PROMPT,
+  MANAGEMENT_AGENT_PROMPT,
+  TECH_AGENT_PROMPT,
+} from './agents_specialized.js'
 
 // Placeholder for agent system instructions - will be managed dynamically
 
@@ -41,11 +48,7 @@ app.post('/api/consultoria', async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'Message is required' })
     }
 
-    // Construct the final prompt based on user message and optional focus
-    let finalMessage = message
-    if (focus) {
-      finalMessage = `[CONTEXTO: O usuário escolheu focar especificamente em "${focus}". Responda com visão integrada, mas dê prioridade e profundidade a este ângulo na análise e no plano.]\n\n${message}`
-    }
+
 
     const modelName = 'gemini-2.0-flash'
 
@@ -54,16 +57,30 @@ app.post('/api/consultoria', async (req: Request, res: Response) => {
       model: modelName,
     })
 
+    const PROMPT_MAP: Record<string, string> = {
+      'Vendas': SALES_AGENT_PROMPT,
+      'Marketing e Branding': MARKETING_AGENT_PROMPT,
+      'Finanças e Jurídico': FINANCE_AGENT_PROMPT,
+      'Gestão e Estratégia': MANAGEMENT_AGENT_PROMPT,
+      'Tecnologia e Inovação': TECH_AGENT_PROMPT,
+    }
+
+    // Determine system instruction based on focus
+    let systemInstruction = UNIFIED_AGENT_PROMPT
+    if (focus && PROMPT_MAP[focus]) {
+      systemInstruction = PROMPT_MAP[focus]
+    }
+
     // Prepend system instruction to history as a user-model turn
     // This is a workaround for API v1 not supporting systemInstruction in the top-level config
     const systemContext = [
       {
         role: 'user',
-        parts: [{ text: `INSTRUÇÕES DO SISTEMA:\n\n${UNIFIED_AGENT_PROMPT}` }],
+        parts: [{ text: `INSTRUÇÕES DO SISTEMA:\n\n${systemInstruction}` }],
       },
       {
         role: 'model',
-        parts: [{ text: 'Entendido. Seguirei essas instruções para atuar como o consultor de negócios.' }],
+        parts: [{ text: 'Entendido. Atuarei como o consultor especialista solicitado.' }],
       },
     ]
 
@@ -71,7 +88,10 @@ app.post('/api/consultoria', async (req: Request, res: Response) => {
       history: [...systemContext, ...(history || [])],
     })
 
-    const result = await chat.sendMessage(finalMessage)
+    // If focus is present, we can gently remind the model in the user message too, 
+    // but the system prompt switch is the main driver.
+    // We keep the original message clean to avoid confusion.
+    const result = await chat.sendMessage(message)
     const response = result.response.text()
 
     console.log('Final Response:', response)
