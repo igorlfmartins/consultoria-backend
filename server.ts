@@ -38,15 +38,24 @@ const genAI = new GoogleGenerativeAI(geminiKey)
 
 app.post('/api/consultoria', async (req: Request, res: Response) => {
   try {
-    const { message, history, focus } = req.body as {
+    const { message, history, focus, language } = req.body as {
       message?: string
       history?: Array<{ role: 'user' | 'model'; parts: { text: string }[] }>
       focus?: string
+      language?: string
     }
 
     if (!message) {
       return res.status(400).json({ error: 'Message is required' })
     }
+
+    const LANGUAGE_MAP: Record<string, string> = {
+      'en': 'English',
+      'pt': 'Portuguese (Brazil)',
+      'es': 'Spanish',
+    }
+
+    const targetLanguage = LANGUAGE_MAP[language || 'en'] || 'English'
 
 
 
@@ -76,11 +85,11 @@ app.post('/api/consultoria', async (req: Request, res: Response) => {
     const systemContext = [
       {
         role: 'user',
-        parts: [{ text: `INSTRUÇÕES DO SISTEMA:\n\n${systemInstruction}` }],
+        parts: [{ text: `INSTRUÇÕES DO SISTEMA:\n\n${systemInstruction}\n\nIMPORTANT: You must answer strictly in ${targetLanguage}.` }],
       },
       {
         role: 'model',
-        parts: [{ text: 'Entendido. Atuarei como o consultor especialista solicitado.' }],
+        parts: [{ text: `Entendido. Atuarei como o consultor especialista solicitado e responderei em ${targetLanguage}.` }],
       },
     ]
 
