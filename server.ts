@@ -1,6 +1,9 @@
 // Backend for Consultoria de Negocios - Railway v1.0.3
 import express, { type Request, type Response } from 'express'
 import cors from 'cors'
+import helmet from 'helmet'
+import rateLimit from 'express-rate-limit'
+import { z } from 'zod'
 import { GoogleGenerativeAI } from '@google/generative-ai'
 import 'dotenv/config'
 import { UNIFIED_AGENT_PROMPT, TONE_INSTRUCTIONS } from './agents.js'
@@ -15,8 +18,36 @@ import {
 // Placeholder for agent system instructions - will be managed dynamically
 
 const app = express()
+
+// Security Middleware: Helmet (Secure Headers)
+app.use(helmet())
+
+// Security Middleware: Rate Limiting (DDoS Protection)
+const limiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 100, // Limit each IP to 100 requests per windowMs
+  standardHeaders: true, // Return rate limit info in the `RateLimit-*` headers
+  legacyHeaders: false, // Disable the `X-RateLimit-*` headers
+  message: 'Muitas requisições deste IP, por favor tente novamente mais tarde.'
+})
+app.use(limiter)
+
 app.use(cors())
 app.use(express.json())
+
+// Input Validation Schema
+const consultoriaSchema = z.object({
+  message: z.string().min(1, "Message is required"),
+  history: z.array(
+    z.object({
+      role: z.enum(['user', 'model']),
+      parts: z.array(z.object({ text: z.string() }))
+    })
+  ).optional(),
+  focus: z.string().optional(),
+  language: z.string().optional(),
+  toneLevel: z.number().int().min(1).max(3).optional()
+})
 
 // Logging middleware
 app.use((req, res, next) => {
@@ -25,7 +56,7 @@ app.use((req, res, next) => {
 })
 
 app.get('/', (req: Request, res: Response) => {
-  res.status(200).send('Backend is running! v1.0.6')
+  res.status(200).send('Backend is running! v1.0.7 (Secure)')
 })
 
 const geminiKey = process.env.GEMINI_API_KEY
@@ -38,17 +69,14 @@ const genAI = new GoogleGenerativeAI(geminiKey)
 
 app.post('/api/consultoria', async (req: Request, res: Response) => {
   try {
-    const { message, history, focus, language, toneLevel } = req.body as {
-      message?: string
-      history?: Array<{ role: 'user' | 'model'; parts: { text: string }[] }>
-      focus?: string
-      language?: string
-      toneLevel?: number
+    // Validate Input with Zod
+    const validationResult = consultoriaSchema.safeParse(req.body)
+
+    if (!validationResult.success) {
+      return res.status(400).json({ error: validationResult.error.format() })
     }
 
-    if (!message) {
-      return res.status(400).json({ error: 'Message is required' })
-    }
+    const { message, history, focus, language, toneLevel } = validationResult.data
 
     const LANGUAGE_MAP: Record<string, string> = {
       'en': 'English',
@@ -117,7 +145,7 @@ app.post('/api/consultoria', async (req: Request, res: Response) => {
   } catch (err: any) {
     console.error('consultoria error:', err)
     const message = typeof err?.message === 'string' ? err.message : 'Internal server error'
-    return res.json({ reply: `Erro interno no backend: ${message}` })
+    return res.status(500).json({ error: message, reply: `Erro interno no backend: ${message}` })
   }
 })
 
