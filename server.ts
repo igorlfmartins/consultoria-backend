@@ -31,13 +31,20 @@ const genAI = new GoogleGenerativeAI(geminiKey)
 
 app.post('/api/consultoria', async (req: Request, res: Response) => {
   try {
-    const { message, history } = req.body as {
+    const { message, history, focus } = req.body as {
       message?: string
       history?: Array<{ role: 'user' | 'model'; parts: { text: string }[] }>
+      focus?: string
     }
 
     if (!message) {
       return res.status(400).json({ error: 'Message is required' })
+    }
+
+    // Construct the final prompt based on user message and optional focus
+    let finalMessage = message
+    if (focus) {
+      finalMessage = `[CONTEXTO: O usuário escolheu focar especificamente em "${focus}". Responda com visão integrada, mas dê prioridade e profundidade a este ângulo na análise e no plano.]\n\n${message}`
     }
 
     const modelName = 'gemini-2.0-flash'
@@ -64,7 +71,7 @@ app.post('/api/consultoria', async (req: Request, res: Response) => {
       history: [...systemContext, ...(history || [])],
     })
 
-    const result = await chat.sendMessage(message)
+    const result = await chat.sendMessage(finalMessage)
     const response = result.response.text()
 
     console.log('Final Response:', response)
