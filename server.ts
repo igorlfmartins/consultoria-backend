@@ -3,7 +3,7 @@ import express, { type Request, type Response } from 'express'
 import cors from 'cors'
 import { GoogleGenerativeAI } from '@google/generative-ai'
 import 'dotenv/config'
-import { UNIFIED_AGENT_PROMPT } from './agents.js'
+import { UNIFIED_AGENT_PROMPT, TONE_INSTRUCTIONS } from './agents.js'
 import {
   SALES_AGENT_PROMPT,
   MARKETING_AGENT_PROMPT,
@@ -38,11 +38,12 @@ const genAI = new GoogleGenerativeAI(geminiKey)
 
 app.post('/api/consultoria', async (req: Request, res: Response) => {
   try {
-    const { message, history, focus, language } = req.body as {
+    const { message, history, focus, language, toneLevel } = req.body as {
       message?: string
       history?: Array<{ role: 'user' | 'model'; parts: { text: string }[] }>
       focus?: string
       language?: string
+      toneLevel?: number
     }
 
     if (!message) {
@@ -56,8 +57,6 @@ app.post('/api/consultoria', async (req: Request, res: Response) => {
     }
 
     const targetLanguage = LANGUAGE_MAP[language || 'en'] || 'English'
-
-
 
     const modelName = 'gemini-2.0-flash'
 
@@ -74,18 +73,25 @@ app.post('/api/consultoria', async (req: Request, res: Response) => {
       'Tecnologia e Inovação': TECH_AGENT_PROMPT,
     }
 
-    // Determine system instruction based on focus
-    let systemInstruction = UNIFIED_AGENT_PROMPT
+    // Determine base prompt based on focus
+    let basePrompt = UNIFIED_AGENT_PROMPT
     if (focus && PROMPT_MAP[focus]) {
-      systemInstruction = PROMPT_MAP[focus]
+      basePrompt = PROMPT_MAP[focus]
     }
+
+    // Determine tone instruction
+    const selectedTone = toneLevel === 1 ? TONE_INSTRUCTIONS.level1 :
+                         toneLevel === 2 ? TONE_INSTRUCTIONS.level2 :
+                         TONE_INSTRUCTIONS.level3 // Default to Brutal (Level 3)
+
+    const finalSystemInstruction = `${basePrompt}\n\n${selectedTone}`
 
     // Prepend system instruction to history as a user-model turn
     // This is a workaround for API v1 not supporting systemInstruction in the top-level config
     const systemContext = [
       {
         role: 'user',
-        parts: [{ text: `INSTRUÇÕES DO SISTEMA:\n\n${systemInstruction}\n\nIMPORTANT: You must answer strictly in ${targetLanguage}.` }],
+        parts: [{ text: `INSTRUÇÕES DO SISTEMA:\n\n${finalSystemInstruction}\n\nIMPORTANT: You must answer strictly in ${targetLanguage}.` }],
       },
       {
         role: 'model',
