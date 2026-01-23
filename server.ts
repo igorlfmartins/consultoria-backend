@@ -66,17 +66,19 @@ app.post('/api/consultoria', async (req: Request, res: Response) => {
     })
 
     const PROMPT_MAP: Record<string, string> = {
-      'Vendas': SALES_AGENT_PROMPT,
-      'Marketing e Branding': MARKETING_AGENT_PROMPT,
-      'Finanças e Jurídico': FINANCE_AGENT_PROMPT,
-      'Gestão e Estratégia': MANAGEMENT_AGENT_PROMPT,
-      'Tecnologia e Inovação': TECH_AGENT_PROMPT,
+      'vendas': SALES_AGENT_PROMPT,
+      'marketing': MARKETING_AGENT_PROMPT,
+      'financas': FINANCE_AGENT_PROMPT,
+      'gestao': MANAGEMENT_AGENT_PROMPT,
+      'tecnologia': TECH_AGENT_PROMPT,
     }
 
     // Determine base prompt based on focus
     let basePrompt = UNIFIED_AGENT_PROMPT
     if (focus && PROMPT_MAP[focus]) {
       basePrompt = PROMPT_MAP[focus]
+    } else if (focus) {
+      console.warn(`Focus area '${focus}' not found in PROMPT_MAP. Using default prompt.`)
     }
 
     // Determine tone instruction
