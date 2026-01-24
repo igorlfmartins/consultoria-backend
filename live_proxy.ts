@@ -2,6 +2,7 @@
 import { WebSocket, WebSocketServer } from 'ws';
 import type { Server } from 'http';
 import 'dotenv/config';
+import { UNIFIED_AGENT_PROMPT, TONE_INSTRUCTIONS } from './agents.js';
 
 export function setupLiveProxy(server: Server) {
   const wss = new WebSocketServer({ noServer: true });
@@ -53,6 +54,25 @@ export function setupLiveProxy(server: Server) {
 
     ws.on('message', (data) => {
       if (googleWs.readyState === WebSocket.OPEN) {
+        try {
+          const msg = JSON.parse(data.toString());
+          if (msg.setup) {
+            // Inject system instruction securely
+            const systemInstruction = `${UNIFIED_AGENT_PROMPT}\n\n${TONE_INSTRUCTIONS.level1}\n\nIMPORTANT: You are in Voice Mode. Keep responses concise and conversational.`;
+            
+            msg.setup.system_instruction = {
+              parts: [{ text: systemInstruction }]
+            };
+            
+            // Re-serialize with injected prompt
+            const newMsg = JSON.stringify(msg);
+            googleWs.send(newMsg);
+            return;
+          }
+        } catch (e) {
+          // Ignore parse errors, just forward raw data (e.g. audio chunks)
+        }
+        
         googleWs.send(data);
       }
     });
