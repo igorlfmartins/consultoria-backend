@@ -103,8 +103,10 @@ app.post('/api/consultoria', async (req: Request, res: Response) => {
 
     // Determine base prompt based on focus
     let basePrompt = UNIFIED_AGENT_PROMPT
-    if (focus && PROMPT_MAP[focus]) {
-      basePrompt = PROMPT_MAP[focus]
+    const normalizedFocus = focus ? focus.toLowerCase() : null
+    
+    if (normalizedFocus && PROMPT_MAP[normalizedFocus]) {
+      basePrompt = PROMPT_MAP[normalizedFocus]
     } else if (focus) {
       console.warn(`Focus area '${focus}' not found in PROMPT_MAP. Using default prompt.`)
     }
