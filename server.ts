@@ -118,21 +118,17 @@ app.post('/api/consultoria', async (req: Request, res: Response) => {
 
     const finalSystemInstruction = `${basePrompt}\n\n${selectedTone}`
 
-    // Prepend system instruction to history as a user-model turn
-    // This is a workaround for API v1 not supporting systemInstruction in the top-level config
-    const systemContext = [
-      {
-        role: 'user',
-        parts: [{ text: `INSTRUÇÕES DO SISTEMA:\n\n${finalSystemInstruction}\n\nIMPORTANT: You must answer strictly in ${targetLanguage}.` }],
-      },
-      {
-        role: 'model',
-        parts: [{ text: `Entendido. Atuarei como o consultor especialista solicitado e responderei em ${targetLanguage}.` }],
-      },
-    ]
+    // Use systemInstruction for more reliable persona adherence (Gemini SDK native support)
+    const model = genAI.getGenerativeModel({
+      model: modelName,
+      systemInstruction: {
+        role: 'system',
+        parts: [{ text: `${finalSystemInstruction}\n\nIMPORTANT: You must answer strictly in ${targetLanguage}.` }],
+      }
+    })
 
     const chat = model.startChat({
-      history: [...systemContext, ...(history || [])],
+      history: history || [],
     })
 
     // If focus is present, we can gently remind the model in the user message too, 
