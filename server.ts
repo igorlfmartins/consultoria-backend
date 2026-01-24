@@ -145,6 +145,10 @@ app.post('/api/consultoria', async (req: Request, res: Response) => {
 })
 
 const port = process.env.PORT || 3000
-app.listen(port, () => {
+
+const httpServer = createServer(app)
+setupLiveProxy(httpServer)
+
+httpServer.listen(port, () => {
   console.log(`Server running on port ${port}`)
 })
