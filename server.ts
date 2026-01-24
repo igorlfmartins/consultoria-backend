@@ -44,7 +44,7 @@ const consultoriaSchema = z.object({
       parts: z.array(z.object({ text: z.string() }))
     })
   ).optional(),
-  focus: z.string().optional(),
+  focus: z.string().nullable().optional(),
   language: z.string().optional(),
   toneLevel: z.number().int().min(1).max(3).optional()
 })
