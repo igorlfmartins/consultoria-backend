@@ -88,11 +88,6 @@ app.post('/api/consultoria', async (req: Request, res: Response) => {
 
     const modelName = 'gemini-2.0-flash'
 
-    // Remove explicit apiVersion to let the SDK handle it (defaults to v1beta or v1 depending on version)
-    const model = genAI.getGenerativeModel({
-      model: modelName,
-    })
-
     const PROMPT_MAP: Record<string, string> = {
       'vendas': SALES_AGENT_PROMPT,
       'marketing': MARKETING_AGENT_PROMPT,
