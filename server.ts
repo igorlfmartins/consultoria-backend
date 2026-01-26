@@ -27,7 +27,10 @@ app.use(helmet({
     directives: {
       ...helmet.contentSecurityPolicy.getDefaultDirectives(),
       "script-src": ["'self'", "'unsafe-eval'", "'unsafe-inline'", "blob:"],
-      "connect-src": ["'self'", "https:", "wss:", "http://localhost:*", "ws://localhost:*"],
+      "style-src": ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
+      "font-src": ["'self'", "https://fonts.gstatic.com"],
+      "connect-src": ["'self'", "https:", "wss:", "http://localhost:*", "ws://localhost:*", "https://consultoria-backend.up.railway.app"],
+      "img-src": ["'self'", "data:", "blob:", "https:"],
     },
   },
 }))
