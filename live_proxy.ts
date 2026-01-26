@@ -8,12 +8,18 @@ export function setupLiveProxy(server: Server) {
   const wss = new WebSocketServer({ noServer: true });
 
   server.on('upgrade', (request, socket, head) => {
-    const { pathname } = new URL(request.url || '', `http://${request.headers.host}`);
+    try {
+      const host = request.headers.host || 'localhost';
+      const url = new URL(request.url || '', `http://${host}`);
 
-    if (pathname === '/api/live') {
-      wss.handleUpgrade(request, socket, head, (ws) => {
-        wss.emit('connection', ws, request);
-      });
+      if (url.pathname === '/api/live') {
+        wss.handleUpgrade(request, socket, head, (ws) => {
+          wss.emit('connection', ws, request);
+        });
+      }
+    } catch (err) {
+      console.error('WebSocket upgrade error:', err);
+      socket.destroy();
     }
   });
 
