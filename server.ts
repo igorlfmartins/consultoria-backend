@@ -22,7 +22,15 @@ import {
 const app = express()
 
 // Security Middleware: Helmet (Secure Headers)
-app.use(helmet())
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      ...helmet.contentSecurityPolicy.getDefaultDirectives(),
+      "script-src": ["'self'", "'unsafe-eval'", "'unsafe-inline'", "blob:"],
+      "connect-src": ["'self'", "https:", "wss:", "http://localhost:*", "ws://localhost:*"],
+    },
+  },
+}))
 
 // Security Middleware: Rate Limiting (DDoS Protection)
 const limiter = rateLimit({
