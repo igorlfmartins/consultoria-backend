@@ -28,18 +28,30 @@ export function setupLiveProxy(server: Server) {
 
     const apiKey = process.env.GEMINI_API_KEY;
     if (!apiKey) {
-      console.error('GEMINI_API_KEY not set');
-      ws.close(1011, 'API Key not configured');
+      console.error('CRITICAL ERROR: GEMINI_API_KEY is missing in environment variables!');
+      ws.close(1011, 'Server Error: API Key Missing');
       return;
     }
 
     // Gemini Multimodal Live WebSocket URL
     const googleUrl = `wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1alpha.GenerativeService.MultimodalLive?key=${apiKey}`;
     
+    console.log(`Connecting to Google Gemini Live API...`);
     const googleWs = new WebSocket(googleUrl);
 
     googleWs.on('open', () => {
-      console.log('Connected to Gemini Live API');
+      console.log('Connected to Gemini Live API successfully');
+    });
+
+    googleWs.on('error', (err) => {
+      console.error('Gemini Live API Connection Error:', err);
+      // Log details if available
+      if (err.message && err.message.includes('401')) {
+         console.error('Possible Cause: Invalid API Key');
+      } else if (err.message && err.message.includes('404')) {
+         console.error('Possible Cause: Invalid Model Name or URL');
+      }
+      ws.close(1011, 'Gemini Upstream Error');
     });
 
     googleWs.on('message', (data) => {
@@ -48,13 +60,10 @@ export function setupLiveProxy(server: Server) {
       }
     });
 
-    googleWs.on('error', (err) => {
-      console.error('Gemini Live API error:', err);
-      ws.close(1011, 'Gemini API Error');
-    });
-
-    googleWs.on('close', () => {
-      console.log('Gemini Live API connection closed');
+    // Error handler moved up
+    
+    googleWs.on('close', (code, reason) => {
+      console.log(`Gemini Live API connection closed: ${code} - ${reason}`);
       ws.close();
     });
 
