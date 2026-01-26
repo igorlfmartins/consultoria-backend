@@ -22,17 +22,9 @@ import {
 const app = express()
 
 // Security Middleware: Helmet (Secure Headers)
+// Temporarily disabling CSP to debug 'eval' and resource blocking issues
 app.use(helmet({
-  contentSecurityPolicy: {
-    directives: {
-      ...helmet.contentSecurityPolicy.getDefaultDirectives(),
-      "script-src": ["'self'", "'unsafe-eval'", "'unsafe-inline'", "blob:"],
-      "style-src": ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
-      "font-src": ["'self'", "https://fonts.gstatic.com"],
-      "connect-src": ["'self'", "https:", "wss:", "http://localhost:*", "ws://localhost:*", "https://consultoria-backend.up.railway.app"],
-      "img-src": ["'self'", "data:", "blob:", "https:"],
-    },
-  },
+  contentSecurityPolicy: false,
 }))
 
 // Security Middleware: Rate Limiting (DDoS Protection)
