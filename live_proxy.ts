@@ -34,6 +34,7 @@ export function setupLiveProxy(server: Server) {
     }
 
     // Gemini Multimodal Live WebSocket URL
+    // Explicitly disabling heartbeat to avoid issues and ensuring v1alpha version
     const googleUrl = `wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1alpha.GenerativeService.MultimodalLive?key=${apiKey}`;
     
     console.log(`Connecting to Google Gemini Live API...`);
