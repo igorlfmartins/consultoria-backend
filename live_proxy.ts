@@ -1,8 +1,9 @@
-
 import { WebSocket, WebSocketServer } from 'ws';
 import type { Server } from 'http';
 import 'dotenv/config';
 import { UNIFIED_AGENT_PROMPT, TONE_INSTRUCTIONS } from './agents.js';
+
+const GOOGLE_LIVE_API_URL = 'wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1alpha.GenerativeService.MultimodalLive';
 
 export function setupLiveProxy(server: Server) {
   const wss = new WebSocketServer({ noServer: true });
@@ -28,31 +29,20 @@ export function setupLiveProxy(server: Server) {
 
     const apiKey = process.env.GEMINI_API_KEY;
     if (!apiKey) {
-      console.error('CRITICAL ERROR: GEMINI_API_KEY is missing in environment variables!');
+      console.error('CRITICAL ERROR: GEMINI_API_KEY missing');
       ws.close(1011, 'Server Error: API Key Missing');
       return;
     }
 
-    // Gemini Multimodal Live WebSocket URL
-    // Explicitly disabling heartbeat to avoid issues and ensuring v1alpha version
-    const googleUrl = `wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1alpha.GenerativeService.MultimodalLive?key=${apiKey}`;
-    
-    console.log(`Connecting to Google Gemini Live API...`);
+    const googleUrl = `${GOOGLE_LIVE_API_URL}?key=${apiKey}`;
     const googleWs = new WebSocket(googleUrl);
 
-    googleWs.on('open', () => {
-      console.log('Connected to Gemini Live API successfully');
-    });
+    // Track connection state
+    let isGoogleWsOpen = false;
 
-    googleWs.on('error', (err) => {
-      console.error('Gemini Live API Connection Error:', err);
-      // Log details if available
-      if (err.message && err.message.includes('401')) {
-         console.error('Possible Cause: Invalid API Key');
-      } else if (err.message && err.message.includes('404')) {
-         console.error('Possible Cause: Invalid Model Name or URL');
-      }
-      ws.close(1011, 'Gemini Upstream Error');
+    googleWs.on('open', () => {
+      console.log('Connected to Gemini Live API');
+      isGoogleWsOpen = true;
     });
 
     googleWs.on('message', (data) => {
@@ -61,46 +51,53 @@ export function setupLiveProxy(server: Server) {
       }
     });
 
-    // Error handler moved up
-    
+    googleWs.on('error', (err: any) => {
+      console.error('Gemini API Error:', err.message);
+      ws.close(1011, 'Upstream Error');
+    });
+
     googleWs.on('close', (code, reason) => {
-      console.log(`Gemini Live API connection closed: ${code} - ${reason}`);
+      console.log(`Gemini API closed: ${code}`);
+      isGoogleWsOpen = false;
       ws.close();
     });
 
     ws.on('message', (data) => {
-      if (googleWs.readyState === WebSocket.OPEN) {
-        try {
-          const msg = JSON.parse(data.toString());
-          if (msg.setup) {
-            // Inject system instruction securely
-            const systemInstruction = `${UNIFIED_AGENT_PROMPT}\n\n${TONE_INSTRUCTIONS.level1}\n\nIMPORTANT: You are in Voice Mode. Keep responses concise and conversational.`;
-            
-            msg.setup.system_instruction = {
-              parts: [{ text: systemInstruction }]
-            };
-            
-            // Re-serialize with injected prompt
-            const newMsg = JSON.stringify(msg);
-            googleWs.send(newMsg);
-            return;
-          }
-        } catch (e) {
-          // Ignore parse errors, just forward raw data (e.g. audio chunks)
-        }
-        
-        googleWs.send(data);
+      if (!isGoogleWsOpen) {
+        // Queue or ignore if upstream not ready
+        return;
       }
+
+      try {
+        const msg = JSON.parse(data.toString());
+        if (msg.setup) {
+          const baseInstruction = msg.setup.system_instruction?.parts?.[0]?.text || UNIFIED_AGENT_PROMPT;
+          const toneInstruction = TONE_INSTRUCTIONS.level1;
+          
+          msg.setup.system_instruction = {
+            parts: [{ 
+              text: `${baseInstruction}\n\n${toneInstruction}\n\nIMPORTANT: Voice Mode. Be concise and natural.` 
+            }]
+          };
+          
+          googleWs.send(JSON.stringify(msg));
+          return;
+        }
+      } catch (e) {
+        // Forward raw data (audio)
+      }
+      
+      googleWs.send(data);
     });
 
     ws.on('error', (err) => {
-      console.error('Frontend WebSocket error:', err);
+      console.error('Frontend WS Error:', err);
       googleWs.close();
     });
 
-    ws.on('close', () => {
-      console.log('Frontend WebSocket closed');
+    ws.onclose = () => {
+      console.log('Frontend WS closed');
       googleWs.close();
-    });
+    };
   });
 }

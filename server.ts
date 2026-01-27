@@ -1,46 +1,37 @@
-// Backend for Consultoria de Negocios - Railway v1.0.3
-import express, { type Request, type Response } from 'express'
-import cors from 'cors'
-import helmet from 'helmet'
-import rateLimit from 'express-rate-limit'
-import { z } from 'zod'
-import { GoogleGenerativeAI } from '@google/generative-ai'
-import 'dotenv/config'
-import { createServer } from 'http'
-import { setupLiveProxy } from './live_proxy.js'
-import { UNIFIED_AGENT_PROMPT, TONE_INSTRUCTIONS } from './agents.js'
-import {
-  SALES_AGENT_PROMPT,
-  MARKETING_AGENT_PROMPT,
-  FINANCE_AGENT_PROMPT,
-  MANAGEMENT_AGENT_PROMPT,
-  TECH_AGENT_PROMPT,
-} from './agents_specialized.js'
+// Backend for Consultoria de Negocios - Railway v1.0.8
+import express, { type Request, type Response, type NextFunction } from 'express';
+import cors from 'cors';
+import helmet from 'helmet';
+import rateLimit from 'express-rate-limit';
+import { z } from 'zod';
+import { GoogleGenerativeAI } from '@google/generative-ai';
+import 'dotenv/config';
+import { createServer } from 'http';
+import { setupLiveProxy } from './live_proxy.js';
+import { UNIFIED_AGENT_PROMPT, TONE_INSTRUCTIONS } from './agents.js';
+import { LANGUAGE_MAP, PROMPT_MAP, MODEL_NAME } from './config.js';
 
-// Placeholder for agent system instructions - will be managed dynamically
+const app = express();
 
-const app = express()
+// Security Middleware
+app.use(helmet({ contentSecurityPolicy: false }));
+app.use(cors());
+app.use(express.json());
 
-// Security Middleware: Helmet (Secure Headers)
-// Temporarily disabling CSP to debug 'eval' and resource blocking issues
-app.use(helmet({
-  contentSecurityPolicy: false,
-}))
-
-// Security Middleware: Rate Limiting (DDoS Protection)
 const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100, // Limit each IP to 100 requests per windowMs
-  standardHeaders: true, // Return rate limit info in the `RateLimit-*` headers
-  legacyHeaders: false, // Disable the `X-RateLimit-*` headers
+  windowMs: 15 * 60 * 1000,
+  max: 100,
   message: 'Muitas requisições deste IP, por favor tente novamente mais tarde.'
-})
-app.use(limiter)
+});
+app.use(limiter);
 
-app.use(cors())
-app.use(express.json())
+// Logging middleware
+app.use((req, res, next) => {
+  console.log(`${new Date().toISOString()} - ${req.method} ${req.url}`);
+  next();
+});
 
-// Input Validation Schema
+// Validation Schema
 const consultoriaSchema = z.object({
   message: z.string().min(1, "Message is required"),
   history: z.array(
@@ -52,106 +43,67 @@ const consultoriaSchema = z.object({
   focus: z.string().nullable().optional(),
   language: z.string().optional(),
   toneLevel: z.number().int().min(1).max(3).optional()
-})
+});
 
-// Logging middleware
-app.use((req, res, next) => {
-  console.log(`${new Date().toISOString()} - ${req.method} ${req.url}`)
-  next()
-})
+const geminiKey = process.env.GEMINI_API_KEY;
+if (!geminiKey) throw new Error('GEMINI_API_KEY not set');
 
+const genAI = new GoogleGenerativeAI(geminiKey);
+
+// Routes
 app.get('/', (req: Request, res: Response) => {
-  res.status(200).send('Backend is running! v1.0.7 (Secure)')
-})
-
-const geminiKey = process.env.GEMINI_API_KEY
-
-if (!geminiKey) {
-  throw new Error('GEMINI_API_KEY not set')
-}
-
-const genAI = new GoogleGenerativeAI(geminiKey)
+  res.status(200).send('Backend is running! v1.0.8 (Refactored)');
+});
 
 app.post('/api/consultoria', async (req: Request, res: Response) => {
   try {
-    // Validate Input with Zod
-    const validationResult = consultoriaSchema.safeParse(req.body)
+    const validated = consultoriaSchema.parse(req.body);
+    const { message, history, focus, language, toneLevel } = validated;
 
-    if (!validationResult.success) {
-      return res.status(400).json({ error: validationResult.error.format() })
-    }
-
-    const { message, history, focus, language, toneLevel } = validationResult.data
-
-    const LANGUAGE_MAP: Record<string, string> = {
-      'en': 'English',
-      'pt': 'Portuguese (Brazil)',
-      'es': 'Spanish',
-    }
-
-    const targetLanguage = LANGUAGE_MAP[language || 'en'] || 'English'
-
-    const modelName = 'gemini-2.0-flash'
-
-    const PROMPT_MAP: Record<string, string> = {
-      'vendas': SALES_AGENT_PROMPT,
-      'marketing': MARKETING_AGENT_PROMPT,
-      'financas': FINANCE_AGENT_PROMPT,
-      'gestao': MANAGEMENT_AGENT_PROMPT,
-      'tecnologia': TECH_AGENT_PROMPT,
-    }
-
-    // Determine base prompt based on focus
-    let basePrompt = UNIFIED_AGENT_PROMPT
-    const normalizedFocus = focus ? focus.toLowerCase() : null
+    const targetLanguage = LANGUAGE_MAP[language || 'en'] || 'English';
+    const selectedPrompt = focus ? PROMPT_MAP[focus.toLowerCase()] || UNIFIED_AGENT_PROMPT : UNIFIED_AGENT_PROMPT;
     
-    if (normalizedFocus && PROMPT_MAP[normalizedFocus]) {
-      basePrompt = PROMPT_MAP[normalizedFocus]
-    } else if (focus) {
-      console.warn(`Focus area '${focus}' not found in PROMPT_MAP. Using default prompt.`)
-    }
+    const toneInstruction = toneLevel === 1 ? TONE_INSTRUCTIONS.level1 :
+                            toneLevel === 2 ? TONE_INSTRUCTIONS.level2 :
+                            TONE_INSTRUCTIONS.level3;
 
-    // Determine tone instruction
-    const selectedTone = toneLevel === 1 ? TONE_INSTRUCTIONS.level1 :
-                         toneLevel === 2 ? TONE_INSTRUCTIONS.level2 :
-                         TONE_INSTRUCTIONS.level3 // Default to Brutal (Level 3)
+    const finalSystemInstruction = `${selectedPrompt}\n\n${toneInstruction}\n\nIMPORTANT: You must answer strictly in ${targetLanguage}.`;
 
-    const finalSystemInstruction = `${basePrompt}\n\n${selectedTone}`
-
-    // Use systemInstruction for more reliable persona adherence (Gemini SDK native support)
     const model = genAI.getGenerativeModel({
-      model: modelName,
+      model: MODEL_NAME,
       systemInstruction: {
         role: 'system',
-        parts: [{ text: `${finalSystemInstruction}\n\nIMPORTANT: You must answer strictly in ${targetLanguage}.` }],
+        parts: [{ text: finalSystemInstruction }],
       }
-    })
+    });
 
-    const chat = model.startChat({
-      history: history || [],
-    })
+    const chat = model.startChat({ history: history || [] });
+    const result = await chat.sendMessage(message);
+    const response = result.response.text();
 
-    // If focus is present, we can gently remind the model in the user message too, 
-    // but the system prompt switch is the main driver.
-    // We keep the original message clean to avoid confusion.
-    const result = await chat.sendMessage(message)
-    const response = result.response.text()
-
-    console.log('Final Response:', response)
-
-    return res.json({ reply: response })
+    return res.json({ reply: response });
   } catch (err: any) {
-    console.error('consultoria error:', err)
-    const message = typeof err?.message === 'string' ? err.message : 'Internal server error'
-    return res.status(500).json({ error: message, reply: `Erro interno no backend: ${message}` })
+    if (err instanceof z.ZodError) {
+      return res.status(400).json({ error: err.format() });
+    }
+    console.error('consultoria error:', err);
+    return res.status(500).json({ 
+      error: err.message || 'Internal server error',
+      reply: `Erro interno no servidor.`
+    });
   }
-})
+});
 
-const port = process.env.PORT || 3000
+// Error handling middleware
+app.use((err: any, req: Request, res: Response, next: NextFunction) => {
+  console.error(err.stack);
+  res.status(500).send('Something broke!');
+});
 
-const httpServer = createServer(app)
-setupLiveProxy(httpServer)
+const port = process.env.PORT || 3000;
+const httpServer = createServer(app);
+setupLiveProxy(httpServer);
 
 httpServer.listen(port, () => {
-  console.log(`Server running on port ${port}`)
-})
+  console.log(`Server running on port ${port}`);
+});
