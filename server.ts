@@ -51,9 +51,7 @@ const consultoriaSchema = z.object({
 });
 
 const geminiKey = process.env.GEMINI_API_KEY;
-if (!geminiKey) throw new Error('GEMINI_API_KEY not set');
-
-const genAI = new GoogleGenerativeAI(geminiKey);
+const genAI = geminiKey ? new GoogleGenerativeAI(geminiKey) : null;
 
 // Routes
 app.get('/', (req: Request, res: Response) => {
@@ -73,6 +71,13 @@ app.post('/api/consultoria', requireAuth, async (req: Request, res: Response) =>
                             TONE_INSTRUCTIONS.level3;
 
     const finalSystemInstruction = `${selectedPrompt}\n\n${toneInstruction}\n\nIMPORTANT: You must answer strictly in ${targetLanguage}.`;
+
+    if (!genAI) {
+      return res.status(503).json({ 
+        error: 'GEMINI_API_KEY not set',
+        reply: 'Erro interno no servidor.'
+      });
+    }
 
     const model = genAI.getGenerativeModel({
       model: MODEL_NAME,
