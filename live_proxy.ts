@@ -2,18 +2,35 @@ import { WebSocket, WebSocketServer } from 'ws';
 import type { Server } from 'http';
 import 'dotenv/config';
 import { UNIFIED_AGENT_PROMPT, TONE_INSTRUCTIONS } from './agents.js';
+import { supabase } from './supabase.js';
 
 const GOOGLE_LIVE_API_URL = 'wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1alpha.GenerativeService.MultimodalLive';
 
 export function setupLiveProxy(server: Server) {
   const wss = new WebSocketServer({ noServer: true });
 
-  server.on('upgrade', (request, socket, head) => {
+  server.on('upgrade', async (request, socket, head) => {
     try {
       const host = request.headers.host || 'localhost';
       const url = new URL(request.url || '', `http://${host}`);
 
       if (url.pathname === '/api/live') {
+        const token = url.searchParams.get('token');
+        
+        if (!token) {
+          socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n');
+          socket.destroy();
+          return;
+        }
+
+        const { data: { user }, error } = await supabase.auth.getUser(token);
+
+        if (error || !user) {
+          socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n');
+          socket.destroy();
+          return;
+        }
+
         wss.handleUpgrade(request, socket, head, (ws) => {
           wss.emit('connection', ws, request);
         });

@@ -10,12 +10,17 @@ import { createServer } from 'http';
 import { setupLiveProxy } from './live_proxy.js';
 import { UNIFIED_AGENT_PROMPT, TONE_INSTRUCTIONS } from './agents.js';
 import { LANGUAGE_MAP, PROMPT_MAP, MODEL_NAME } from './config.js';
+import { requireAuth } from './middleware/auth.js';
 
 const app = express();
 
 // Security Middleware
 app.use(helmet({ contentSecurityPolicy: false }));
-app.use(cors());
+app.use(cors({
+  origin: process.env.FRONTEND_URL || '*', // Em produção, defina FRONTEND_URL
+  methods: ['GET', 'POST', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'x-api-key']
+}));
 app.use(express.json());
 
 const limiter = rateLimit({
@@ -55,7 +60,7 @@ app.get('/', (req: Request, res: Response) => {
   res.status(200).send('Backend is running! v1.0.8 (Refactored)');
 });
 
-app.post('/api/consultoria', async (req: Request, res: Response) => {
+app.post('/api/consultoria', requireAuth, async (req: Request, res: Response) => {
   try {
     const validated = consultoriaSchema.parse(req.body);
     const { message, history, focus, language, toneLevel } = validated;
