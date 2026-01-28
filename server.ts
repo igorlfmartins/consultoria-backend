@@ -17,7 +17,7 @@ const app = express();
 // Security Middleware
 app.use(helmet({ contentSecurityPolicy: false }));
 app.use(cors({
-  origin: process.env.FRONTEND_URL || '*', // Em produção, defina FRONTEND_URL
+  origin: process.env.FRONTEND_URL || 'http://localhost:5173', // Fallback seguro para dev local
   methods: ['GET', 'POST', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'x-api-key']
 }));
@@ -92,21 +92,22 @@ app.post('/api/consultoria', requireAuth, async (req: Request, res: Response) =>
     const response = result.response.text();
 
     return res.json({ reply: response });
-  } catch (err: any) {
+  } catch (err: unknown) {
     if (err instanceof z.ZodError) {
       return res.status(400).json({ error: err.format() });
     }
     console.error('consultoria error:', err);
+    const errorMessage = err instanceof Error ? err.message : 'Internal server error';
     return res.status(500).json({ 
-      error: err.message || 'Internal server error',
+      error: errorMessage,
       reply: `Erro interno no servidor.`
     });
   }
 });
 
 // Error handling middleware
-app.use((err: any, req: Request, res: Response, next: NextFunction) => {
-  console.error(err.stack);
+app.use((err: unknown, req: Request, res: Response, next: NextFunction) => {
+  console.error(err);
   res.status(500).send('Something broke!');
 });
 
