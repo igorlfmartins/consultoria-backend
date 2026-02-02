@@ -16,25 +16,27 @@ const app = express();
 
 // Security Middleware
 app.use(helmet({ contentSecurityPolicy: false }));
-const allowedOrigins = process.env.NODE_ENV === 'production'
-  ? [process.env.FRONTEND_URL].filter(Boolean)
-  : [
-      'http://localhost:5173',
-      'http://localhost:5174',
-      'http://localhost:5175',
-      'http://localhost:5176',
-      process.env.FRONTEND_URL
-    ].filter(Boolean);
+
+const allowedOrigins = [
+  'http://localhost:5173',
+  'http://localhost:5174',
+  'http://localhost:5175',
+  'http://localhost:3000',
+  process.env.FRONTEND_URL,
+  'https://clarity-machine.up.railway.app',
+  'https://clarity-machine-frontend.up.railway.app'
+].filter((url): url is string => !!url).map(url => url.replace(/\/$/, ''));
 
 app.use(cors({
   origin: (origin, callback) => {
     // Permite requisições sem origin (como mobile apps ou curl)
     if (!origin) return callback(null, true);
     
-    if (allowedOrigins.indexOf(origin) !== -1 || !process.env.NODE_ENV) {
+    if (allowedOrigins.includes(origin) || !process.env.NODE_ENV) {
       callback(null, true);
     } else {
-      callback(new Error('Not allowed by CORS'));
+      console.warn(`Blocked by CORS: ${origin}`);
+      callback(new Error(`Not allowed by CORS: ${origin}`));
     }
   },
   methods: ['GET', 'POST', 'OPTIONS'],
