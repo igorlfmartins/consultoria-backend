@@ -24,7 +24,8 @@ const allowedOrigins = [
   'http://localhost:3000',
   process.env.FRONTEND_URL,
   'https://clarity-machine.up.railway.app',
-  'https://clarity-machine-frontend.up.railway.app'
+  'https://clarity-machine-frontend.up.railway.app',
+  'https://claritymachine.weareup.studio'
 ].filter((url): url is string => !!url).map(url => url.replace(/\/$/, ''));
 
 app.use(cors({
