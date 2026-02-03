@@ -5,6 +5,7 @@ import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
 import { z } from 'zod';
 import { GoogleGenerativeAI } from '@google/generative-ai';
+import { createClient } from '@supabase/supabase-js';
 import 'dotenv/config';
 import { createServer } from 'http';
 import { setupLiveProxy } from './live_proxy.js';
@@ -31,7 +32,6 @@ const allowedOrigins = [
 
 app.use(cors({
   origin: (origin, callback) => {
-    // Permite requisições sem origin (como mobile apps ou curl)
     if (!origin) return callback(null, true);
     
     if (allowedOrigins.includes(origin) || !process.env.NODE_ENV) {
@@ -41,7 +41,7 @@ app.use(cors({
       callback(new Error(`Not allowed by CORS: ${origin}`));
     }
   },
-  methods: ['GET', 'POST', 'OPTIONS'],
+  methods: ['GET', 'POST', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'x-api-key'],
   credentials: true
 }));
@@ -60,9 +60,17 @@ app.use((req, res, next) => {
   next();
 });
 
+// Helper: Get Scoped Supabase Client
+const getScopedSupabase = (authHeader: string) => {
+  return createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_ANON_KEY!, {
+    global: { headers: { Authorization: authHeader } }
+  });
+};
+
 // Validation Schema
 const consultoriaSchema = z.object({
   message: z.string().min(1, "Message is required"),
+  conversationId: z.string().nullable().optional(), // Added conversationId
   history: z.array(
     z.object({
       role: z.enum(['user', 'model']),
@@ -79,21 +87,77 @@ const genAI = geminiKey ? new GoogleGenerativeAI(geminiKey) : null;
 
 // Routes
 app.get('/', (req: Request, res: Response) => {
-  res.status(200).send('Backend is running! v1.0.8 (Refactored)');
+  res.status(200).send('Backend is running! v1.1.0 (Supabase Persistence)');
 });
+
+// --- Chat Management Routes ---
+
+// GET /api/chats - List sessions
+app.get('/api/chats', requireAuth, async (req: Request, res: Response) => {
+  try {
+    const supabase = getScopedSupabase(req.headers.authorization!);
+    const { data, error } = await supabase
+      .from('chats')
+      .select('id, title, created_at')
+      .order('created_at', { ascending: false });
+
+    if (error) throw error;
+    res.json(data);
+  } catch (err: any) {
+    console.error('Error fetching chats:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /api/chats/:id/messages - Get messages
+app.get('/api/chats/:id/messages', requireAuth, async (req: Request, res: Response) => {
+  try {
+    const supabase = getScopedSupabase(req.headers.authorization!);
+    const { data, error } = await supabase
+      .from('messages')
+      .select('*')
+      .eq('chat_id', req.params.id)
+      .order('created_at', { ascending: true });
+
+    if (error) throw error;
+    res.json(data);
+  } catch (err: any) {
+    console.error('Error fetching messages:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// DELETE /api/chats/:id - Delete session
+app.delete('/api/chats/:id', requireAuth, async (req: Request, res: Response) => {
+  try {
+    const supabase = getScopedSupabase(req.headers.authorization!);
+    const { error } = await supabase
+      .from('chats')
+      .delete()
+      .eq('id', req.params.id);
+
+    if (error) throw error;
+    res.json({ success: true });
+  } catch (err: any) {
+    console.error('Error deleting chat:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// --- Main Consultoria Route ---
 
 app.post('/api/consultoria', requireAuth, async (req: Request, res: Response) => {
   try {
     const validated = consultoriaSchema.parse(req.body);
     const { message, history, focus, language, toneLevel } = validated;
+    let { conversationId } = validated;
 
+    // Setup Gemini
     const targetLanguage = LANGUAGE_MAP[language || 'en'] || 'English';
     const selectedPrompt = focus ? PROMPT_MAP[focus.toLowerCase()] || UNIFIED_AGENT_PROMPT : UNIFIED_AGENT_PROMPT;
-    
     const toneInstruction = toneLevel === 1 ? TONE_INSTRUCTIONS.level1 :
                             toneLevel === 2 ? TONE_INSTRUCTIONS.level2 :
                             TONE_INSTRUCTIONS.level3;
-
     const finalSystemInstruction = `${selectedPrompt}\n\n${toneInstruction}\n\nIMPORTANT: You must answer strictly in ${targetLanguage}.`;
 
     if (!genAI) {
@@ -103,6 +167,37 @@ app.post('/api/consultoria', requireAuth, async (req: Request, res: Response) =>
       });
     }
 
+    // Initialize Supabase and User
+    const supabase = getScopedSupabase(req.headers.authorization!);
+    const { data: { user }, error: userError } = await supabase.auth.getUser();
+    if (userError || !user) throw new Error('Failed to get authenticated user');
+
+    // Create/Get Session
+    if (!conversationId) {
+      const title = message.slice(0, 50) + (message.length > 50 ? '...' : '');
+      const { data: chat, error: chatError } = await supabase
+        .from('chats')
+        .insert({
+          user_id: user.id,
+          title: title
+        })
+        .select()
+        .single();
+      
+      if (chatError) throw chatError;
+      conversationId = chat.id;
+    }
+
+    // Save User Message
+    const { error: msgError1 } = await supabase.from('messages').insert({
+      chat_id: conversationId,
+      user_id: user.id,
+      role: 'user',
+      content: message
+    });
+    if (msgError1) throw msgError1;
+
+    // Call Gemini
     const model = genAI.getGenerativeModel({
       model: MODEL_NAME,
       systemInstruction: {
@@ -115,7 +210,17 @@ app.post('/api/consultoria', requireAuth, async (req: Request, res: Response) =>
     const result = await chat.sendMessage(message);
     const response = result.response.text();
 
-    return res.json({ reply: response });
+    // Save AI Message
+    const { error: msgError2 } = await supabase.from('messages').insert({
+      chat_id: conversationId,
+      user_id: user.id,
+      role: 'model',
+      content: response
+    });
+    if (msgError2) console.error('Failed to save AI message:', msgError2);
+
+    return res.json({ reply: response, conversationId });
+
   } catch (err: unknown) {
     if (err instanceof z.ZodError) {
       return res.status(400).json({ error: err.format() });
@@ -126,7 +231,7 @@ app.post('/api/consultoria', requireAuth, async (req: Request, res: Response) =>
     if (errorMessage.includes('API key not valid') || errorMessage.includes('API_KEY_INVALID')) {
       return res.status(500).json({
         error: errorMessage,
-        reply: 'Erro de configuração: Chave de API do Gemini inválida ou ausente. Verifique o arquivo .env no backend.'
+        reply: 'Erro de configuração: Chave de API do Gemini inválida ou ausente.'
       });
     }
 
