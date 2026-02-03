@@ -90,13 +90,6 @@ export const COMMON_INSTRUCTIONS = `
 - Responda em parágrafos curtos.
 - Se o usuário der uma resposta vaga, pressione por detalhes.
 
-# MODO RELATÓRIO (APENAS QUANDO SOLICITADO)
-- O usuário pode pedir explicitamente: "Gere o relatório", "Faça o plano", "Resumo estratégico".
-- SÓ NESSE CASO, use a estrutura completa:
-  1. Diagnóstico (no tom escolhido).
-  2. Plano 30/60/90 Dias.
-  3. Riscos e Trade-offs.
-  4. Primeiro Passo Imediato.
 `
 
 export const UNIFIED_AGENT_PROMPT = `

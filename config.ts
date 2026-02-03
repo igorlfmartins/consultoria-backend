@@ -20,4 +20,4 @@ export const PROMPT_MAP: Record<string, string> = {
   'tecnologia': TECH_AGENT_PROMPT,
 };
 
-export const MODEL_NAME = 'gemini-2.0-flash';
+export const MODEL_NAME = 'gemini-3-flash-preview';
